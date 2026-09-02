@@ -6,16 +6,6 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 )
 
-// Intent defines the boundaries for codebase edits.
-// It uses doublestar path-glob matching to evaluate if a file modification is permitted.
-type Intent struct {
-	// Allow is a list of glob patterns that are permitted to be modified.
-	Allow []string
-	// Deny is a list of glob patterns that are explicitly forbidden to be modified.
-	// Deny rules take precedence over Allow rules.
-	Deny []string
-}
-
 // IsAllowed evaluates if a given file path is permitted by the Intent.
 // A path is allowed if it matches at least one Allow rule and does not match any Deny rule.
 // If Allow is empty, everything is denied by default unless the Intent is completely empty (which also denies all).

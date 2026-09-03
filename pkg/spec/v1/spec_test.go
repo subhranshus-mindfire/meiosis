@@ -86,5 +86,53 @@ func TestIntentValidate(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeSortsObjectKeys(t *testing.T) {
+	first, err := CanonicalizeJSON([]byte(`{"b":2,"a":1}`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	second, err := CanonicalizeJSON([]byte(`{ "a": 1, "b": 2 }`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	if string(first) != `{"a":1,"b":2}` || string(first) != string(second) {
+		t.Fatalf("canonical output mismatch: %q and %q", first, second)
+	}
+}
+
+func TestCanonicalizeUsesJCSNumberRules(t *testing.T) {
+	got, err := CanonicalizeJSON([]byte(`{"small":1.0,"zero":-0,"large":1e+21}`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	if want := `{"large":1e+21,"small":1,"zero":0}`; string(got) != want {
+		t.Fatalf("canonical output = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalizeRejectsInvalidInput(t *testing.T) {
+	for _, input := range []string{`{"a":1} {"b":2}`, `{"a":NaN}`, `{"a":1e999}`, `{"a":1,"a":2}`} {
+		if _, err := CanonicalizeJSON([]byte(input)); err == nil {
+			t.Fatalf("CanonicalizeJSON(%q) expected error", input)
+		}
+	}
+}
+
+func TestCanonicalizeMeiosisObject(t *testing.T) {
+	got, err := Canonicalize(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent})
+	if err != nil {
+		t.Fatalf("Canonicalize() error = %v", err)
+	}
+	if want := `{"id":"agent:planner-7","kind":"agent"}`; string(got) != want {
+		t.Fatalf("canonical output = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalizeRejectsUnsupportedValue(t *testing.T) {
+	if _, err := Canonicalize(make(chan int)); err == nil {
+		t.Fatal("Canonicalize() expected unsupported value error")
+	}
+}
+
 func validIntentID() string  { return "int_" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
 func validAttemptID() string { return "att_" + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }

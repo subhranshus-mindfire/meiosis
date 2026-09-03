@@ -11,4 +11,6 @@ var (
 	ErrInvalidEvidence    = errors.New("invalid evidence")
 	ErrInvalidAttestation = errors.New("invalid attestation")
 	ErrInvalidVerdict     = errors.New("invalid verdict")
+	ErrInvalidKey         = errors.New("invalid Ed25519 key")
+	ErrKeyMismatch        = errors.New("Ed25519 public and private keys do not match")
 )

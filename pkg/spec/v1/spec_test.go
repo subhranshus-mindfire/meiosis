@@ -150,6 +150,9 @@ func TestLoadKeyPairRejectsMalformedKeys(t *testing.T) {
 	}
 	if _, err := LoadEncodedKeyPair("not-base64", ""); err == nil {
 		t.Fatal("LoadEncodedKeyPair() accepted malformed encoding")
+	}
+}
+
 func TestCanonicalizeSortsObjectKeys(t *testing.T) {
 	first, err := CanonicalizeJSON([]byte(`{"b":2,"a":1}`))
 	if err != nil {
@@ -246,6 +249,74 @@ func TestCanonicalizeProducesStableHashInput(t *testing.T) {
 	hash := sha256.Sum256(canonical)
 	if got, want := hex.EncodeToString(hash[:]), "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"; got != want {
 		t.Fatalf("canonical hash = %s, want %s", got, want)
+	}
+}
+
+func TestSignAndVerifyMeiosisObject(t *testing.T) {
+	keys, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	object := Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}
+
+	signature, err := Sign(object, keys.PrivateKey)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+	valid, err := Verify(object, signature, keys.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if !valid {
+		t.Fatal("Verify() rejected a valid signature")
+	}
+}
+
+func TestSignExcludesSignatureField(t *testing.T) {
+	keys, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	withoutSignature := map[string]any{"id": "agent:planner-7", "kind": "agent"}
+	withSignature := map[string]any{"kind": "agent", "id": "agent:planner-7", "signature": "old-signature"}
+
+	first, err := Sign(withoutSignature, keys.PrivateKey)
+	if err != nil {
+		t.Fatalf("Sign() without signature error = %v", err)
+	}
+	second, err := Sign(withSignature, keys.PrivateKey)
+	if err != nil {
+		t.Fatalf("Sign() with signature error = %v", err)
+	}
+	if first != second {
+		t.Fatalf("Sign() included signature field: %q != %q", first, second)
+	}
+}
+
+func TestVerifyRejectsChangedObjectAndMalformedSignature(t *testing.T) {
+	keys, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	signature, err := Sign(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, keys.PrivateKey)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+	valid, err := Verify(Principal{ID: "agent:other", Kind: PrincipalKindAgent}, signature, keys.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify() changed object error = %v", err)
+	}
+	if valid {
+		t.Fatal("Verify() accepted a signature for a changed object")
+	}
+	if _, err := Verify(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, "not-base64", keys.PublicKey); err == nil {
+		t.Fatal("Verify() accepted malformed signature encoding")
+	}
+}
+
+func TestSignRejectsMalformedPrivateKey(t *testing.T) {
+	if _, err := Sign(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, make(ed25519.PrivateKey, ed25519.SeedSize-1)); err == nil {
+		t.Fatal("Sign() accepted malformed private key")
 	}
 }
 

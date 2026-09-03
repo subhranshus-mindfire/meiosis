@@ -2,6 +2,8 @@ package v1
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 	"time"
@@ -148,6 +150,102 @@ func TestLoadKeyPairRejectsMalformedKeys(t *testing.T) {
 	}
 	if _, err := LoadEncodedKeyPair("not-base64", ""); err == nil {
 		t.Fatal("LoadEncodedKeyPair() accepted malformed encoding")
+func TestCanonicalizeSortsObjectKeys(t *testing.T) {
+	first, err := CanonicalizeJSON([]byte(`{"b":2,"a":1}`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	second, err := CanonicalizeJSON([]byte(`{ "a": 1, "b": 2 }`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	if string(first) != `{"a":1,"b":2}` || string(first) != string(second) {
+		t.Fatalf("canonical output mismatch: %q and %q", first, second)
+	}
+}
+
+func TestCanonicalizeUsesJCSNumberRules(t *testing.T) {
+	got, err := CanonicalizeJSON([]byte(`{"small":1.0,"zero":-0,"large":1e+21}`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	if want := `{"large":1e+21,"small":1,"zero":0}`; string(got) != want {
+		t.Fatalf("canonical output = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalizeRejectsInvalidInput(t *testing.T) {
+	for _, input := range []string{`{"a":1} {"b":2}`, `{"a":NaN}`, `{"a":1e999}`, `{"a":1,"a":2}`} {
+		if _, err := CanonicalizeJSON([]byte(input)); err == nil {
+			t.Fatalf("CanonicalizeJSON(%q) expected error", input)
+		}
+	}
+}
+
+func TestCanonicalizeMeiosisObject(t *testing.T) {
+	got, err := Canonicalize(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent})
+	if err != nil {
+		t.Fatalf("Canonicalize() error = %v", err)
+	}
+	if want := `{"id":"agent:planner-7","kind":"agent"}`; string(got) != want {
+		t.Fatalf("canonical output = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalizeRejectsUnsupportedValue(t *testing.T) {
+	if _, err := Canonicalize(make(chan int)); err == nil {
+		t.Fatal("Canonicalize() expected unsupported value error")
+	}
+}
+
+func TestCanonicalizeRepresentativeMeiosisObjects(t *testing.T) {
+	hash := MustParseWorldHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	objects := []any{
+		Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent},
+		Intent{ID: validIntentID(), Repo: "example/repo", Title: "Title", Goal: "Goal", Acceptance: []Criterion{{Text: "criterion"}}, Scope: Scope{Allow: []string{"pkg/**"}, Mode: ScopeModeEnforce}, CreatedBy: "human:lakin", CreatedAt: time.Unix(1, 0), Status: IntentStatusOpen, Signature: "sig"},
+		Attempt{ID: validAttemptID(), Intent: validIntentID(), Author: "agent:planner-7", World: hash, BaseWorld: hash, Status: AttemptStatusOpen, CreatedAt: time.Unix(1, 0), Signature: "sig"},
+		hash,
+		Evidence{ID: "evidence-1", Attempt: validAttemptID(), World: hash, Kind: EvidenceKindTestRun, Producer: "agent:ci", Outcome: EvidenceOutcomePass, Payload: json.RawMessage(`{"passed":true}`), CreatedAt: time.Unix(1, 0), Signature: "sig"},
+		Attestation{Attempt: validAttemptID(), Agent: "agent:planner-7", Model: "model", ModelVer: "v1", Tools: []string{"go test"}, PromptHash: hash.String(), TokensIn: 1, TokensOut: 1, CostMicros: 1, Signature: "sig"},
+		Verdict{Attempt: validAttemptID(), Decision: VerdictDecisionMerge, DecidedBy: "human:lakin", PolicyRef: "policy", PolicyIn: json.RawMessage(`{}`), Rationale: "approved", DecidedAt: time.Unix(1, 0), Signature: "sig"},
+	}
+	for index, object := range objects {
+		first, err := Canonicalize(object)
+		if err != nil {
+			t.Fatalf("object %d: first canonicalization: %v", index, err)
+		}
+		second, err := Canonicalize(object)
+		if err != nil {
+			t.Fatalf("object %d: second canonicalization: %v", index, err)
+		}
+		if string(first) != string(second) {
+			t.Fatalf("object %d: canonical output changed: %q != %q", index, first, second)
+		}
+	}
+}
+
+func TestCanonicalizeDifferentObjectsDiffer(t *testing.T) {
+	first, err := Canonicalize(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent})
+	if err != nil {
+		t.Fatalf("Canonicalize() error = %v", err)
+	}
+	second, err := Canonicalize(Principal{ID: "human:lakin", Kind: PrincipalKindHuman})
+	if err != nil {
+		t.Fatalf("Canonicalize() error = %v", err)
+	}
+	if string(first) == string(second) {
+		t.Fatal("different objects produced identical canonical bytes")
+	}
+}
+
+func TestCanonicalizeProducesStableHashInput(t *testing.T) {
+	canonical, err := CanonicalizeJSON([]byte(`{"b":2,"a":1}`))
+	if err != nil {
+		t.Fatalf("CanonicalizeJSON() error = %v", err)
+	}
+	hash := sha256.Sum256(canonical)
+	if got, want := hex.EncodeToString(hash[:]), "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"; got != want {
+		t.Fatalf("canonical hash = %s, want %s", got, want)
 	}
 }
 

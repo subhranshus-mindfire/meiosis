@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -88,6 +89,67 @@ func TestIntentValidate(t *testing.T) {
 	}
 }
 
+func TestGenerateAndLoadKeyPair(t *testing.T) {
+	original, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	if len(original.PublicKey) != ed25519.PublicKeySize || len(original.PrivateKey) != ed25519.PrivateKeySize {
+		t.Fatal("GenerateKeyPair() returned incorrectly sized keys")
+	}
+
+	loaded, err := LoadKeyPair(original.PrivateKey, original.PublicKey)
+	if err != nil {
+		t.Fatalf("LoadKeyPair() error = %v", err)
+	}
+	if loaded.PublicKeyBase64() != original.PublicKeyBase64() || loaded.PrivateKeyBase64() != original.PrivateKeyBase64() {
+		t.Fatal("LoadKeyPair() changed key material")
+	}
+
+	message := []byte("meiosis keypair test")
+	signature := ed25519.Sign(loaded.PrivateKey, message)
+	if !ed25519.Verify(loaded.PublicKey, message, signature) {
+		t.Fatal("loaded keypair failed signature verification")
+	}
+}
+
+func TestLoadEncodedKeyPair(t *testing.T) {
+	original, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	loaded, err := LoadEncodedKeyPair(original.PrivateKeyBase64(), original.PublicKeyBase64())
+	if err != nil {
+		t.Fatalf("LoadEncodedKeyPair() error = %v", err)
+	}
+	if loaded.PublicKeyBase64() != original.PublicKeyBase64() {
+		t.Fatal("LoadEncodedKeyPair() loaded a different public key")
+	}
+}
+
+func TestLoadKeyPairRejectsMalformedKeys(t *testing.T) {
+	valid, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() error = %v", err)
+	}
+	for name, privateKey := range map[string][]byte{
+		"empty":     nil,
+		"short":     make([]byte, ed25519.SeedSize-1),
+		"malformed": make([]byte, ed25519.PrivateKeySize),
+		"long":      make([]byte, ed25519.PrivateKeySize+1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := LoadKeyPair(privateKey, nil); err == nil {
+				t.Fatal("LoadKeyPair() accepted malformed private key")
+			}
+		})
+	}
+	badPublic := make([]byte, ed25519.PublicKeySize)
+	if _, err := LoadKeyPair(valid.PrivateKey, badPublic); err == nil {
+		t.Fatal("LoadKeyPair() accepted mismatched public key")
+	}
+	if _, err := LoadEncodedKeyPair("not-base64", ""); err == nil {
+		t.Fatal("LoadEncodedKeyPair() accepted malformed encoding")
 func TestCanonicalizeSortsObjectKeys(t *testing.T) {
 	first, err := CanonicalizeJSON([]byte(`{"b":2,"a":1}`))
 	if err != nil {

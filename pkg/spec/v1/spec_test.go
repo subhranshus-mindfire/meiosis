@@ -270,6 +270,14 @@ func TestSignAndVerifyMeiosisObject(t *testing.T) {
 	if !valid {
 		t.Fatal("Verify() rejected a valid signature")
 	}
+
+	repeated, err := Sign(object, keys.PrivateKey)
+	if err != nil {
+		t.Fatalf("Sign() repeated call error = %v", err)
+	}
+	if signature != repeated {
+		t.Fatal("Sign() produced different signatures for the same canonical object")
+	}
 }
 
 func TestSignExcludesSignatureField(t *testing.T) {
@@ -298,11 +306,33 @@ func TestVerifyRejectsChangedObjectAndMalformedSignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKeyPair() error = %v", err)
 	}
-	signature, err := Sign(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, keys.PrivateKey)
+	object := map[string]any{"id": "agent:planner-7", "kind": "agent"}
+	signature, err := Sign(object, keys.PrivateKey)
 	if err != nil {
 		t.Fatalf("Sign() error = %v", err)
 	}
-	valid, err := Verify(Principal{ID: "agent:other", Kind: PrincipalKindAgent}, signature, keys.PublicKey)
+	orderedObject := map[string]any{"kind": "agent", "id": "agent:planner-7"}
+	valid, err := Verify(orderedObject, signature, keys.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify() reordered object error = %v", err)
+	}
+	if !valid {
+		t.Fatal("Verify() rejected an equivalent object with reordered fields")
+	}
+
+	otherKeys, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair() for wrong key error = %v", err)
+	}
+	valid, err = Verify(object, signature, otherKeys.PublicKey)
+	if err != nil {
+		t.Fatalf("Verify() wrong key error = %v", err)
+	}
+	if valid {
+		t.Fatal("Verify() accepted a signature with the wrong public key")
+	}
+
+	valid, err = Verify(map[string]any{"id": "agent:other", "kind": "agent"}, signature, keys.PublicKey)
 	if err != nil {
 		t.Fatalf("Verify() changed object error = %v", err)
 	}

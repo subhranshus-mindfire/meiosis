@@ -19,6 +19,17 @@ type Kind string
 // BlobID is the lower-case hexadecimal BLAKE3-256 identifier of blob content.
 type BlobID string
 
+// Tx is an atomic storage operation. Returning an error from the transaction
+// callback rolls back every operation performed through tx.
+type Tx interface {
+	Put(ctx context.Context, kind Kind, key string, value []byte) error
+	Get(ctx context.Context, kind Kind, key string) ([]byte, error)
+	Delete(ctx context.Context, kind Kind, key string) error
+	List(ctx context.Context, kind Kind) (map[string][]byte, error)
+	PutBlob(ctx context.Context, value []byte) (BlobID, error)
+	GetBlob(ctx context.Context, id BlobID) ([]byte, error)
+}
+
 const (
 	KindPrincipal   Kind = "principals"
 	KindIntent      Kind = "intents"
@@ -38,5 +49,6 @@ type Store interface {
 	List(ctx context.Context, kind Kind) (map[string][]byte, error)
 	PutBlob(ctx context.Context, value []byte) (BlobID, error)
 	GetBlob(ctx context.Context, id BlobID) ([]byte, error)
+	Transaction(ctx context.Context, fn func(Tx) error) error
 	Close() error
 }

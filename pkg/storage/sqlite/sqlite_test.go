@@ -71,3 +71,43 @@ func TestStoreOperations(t *testing.T) {
 		t.Fatalf("Get() after delete error = %v, want ErrNotFound", err)
 	}
 }
+
+func TestBlobPersistenceAndDeduplication(t *testing.T) {
+	databasePath := t.TempDir() + "/meiosis.db"
+	store, err := Open(databasePath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	ctx := context.Background()
+	content := []byte("content-addressed blob")
+	first, err := store.PutBlob(ctx, content)
+	if err != nil {
+		t.Fatalf("PutBlob() error = %v", err)
+	}
+	second, err := store.PutBlob(ctx, content)
+	if err != nil {
+		t.Fatalf("PutBlob() duplicate error = %v", err)
+	}
+	if first != second {
+		t.Fatalf("duplicate content IDs differ: %q != %q", first, second)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reopened, err := Open(databasePath)
+	if err != nil {
+		t.Fatalf("Open() existing database error = %v", err)
+	}
+	defer reopened.Close()
+	got, err := reopened.GetBlob(ctx, first)
+	if err != nil {
+		t.Fatalf("GetBlob() error = %v", err)
+	}
+	if string(got) != string(content) {
+		t.Fatalf("GetBlob() = %q, want %q", got, content)
+	}
+	if _, err := reopened.GetBlob(ctx, storage.BlobID("not-a-digest")); !errors.Is(err, storage.ErrInvalidBlob) {
+		t.Fatalf("GetBlob() invalid ID error = %v, want ErrInvalidBlob", err)
+	}
+}

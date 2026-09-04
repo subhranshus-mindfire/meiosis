@@ -187,5 +187,32 @@ func TestCanonicalizeProducesStableHashInput(t *testing.T) {
 	}
 }
 
+func TestHashCanonicalIsDeterministicAndOrderIndependent(t *testing.T) {
+	first, err := HashCanonicalJSON([]byte(`{"b":2,"a":1}`))
+	if err != nil {
+		t.Fatalf("HashCanonicalJSON() error = %v", err)
+	}
+	second, err := HashCanonicalJSON([]byte(`{"a":1,"b":2}`))
+	if err != nil {
+		t.Fatalf("HashCanonicalJSON() error = %v", err)
+	}
+	if first != second {
+		t.Fatalf("hash changed with field order: %s != %s", DigestHex(first), DigestHex(second))
+	}
+	zero, err := HashCanonical(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent})
+	if err != nil {
+		t.Fatalf("HashCanonical() error = %v", err)
+	}
+	if zero == ([BLAKE3DigestSize]byte{}) {
+		t.Fatal("HashCanonical() returned a zero digest")
+	}
+}
+
+func TestHashCanonicalRejectsInvalidJSON(t *testing.T) {
+	if _, err := HashCanonicalJSON([]byte(`{"a":1} {"b":2}`)); err == nil {
+		t.Fatal("HashCanonicalJSON() accepted invalid JSON")
+	}
+}
+
 func validIntentID() string  { return "int_" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
 func validAttemptID() string { return "att_" + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }

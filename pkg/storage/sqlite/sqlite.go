@@ -4,10 +4,12 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
 	"github.com/mindfire-test/meiosis/pkg/storage"
+	"github.com/zeebo/blake3"
 	_ "modernc.org/sqlite"
 )
 
@@ -50,6 +52,11 @@ CREATE TABLE IF NOT EXISTS attestations (
 CREATE TABLE IF NOT EXISTS verdicts (
     id TEXT PRIMARY KEY,
     object BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS blobs (
+    id TEXT PRIMARY KEY,
+    content BLOB NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT OR IGNORE INTO schema_versions(version) VALUES (1);
@@ -170,6 +177,41 @@ func (s *Store) List(ctx context.Context, kind storage.Kind) (map[string][]byte,
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// PutBlob stores value under its BLAKE3-256 content identifier. Repeated
+// writes of identical content are idempotent and do not create new records.
+func (s *Store) PutBlob(ctx context.Context, value []byte) (storage.BlobID, error) {
+	digest := blake3.Sum256(value)
+	id := storage.BlobID(hex.EncodeToString(digest[:]))
+	_, err := s.db.ExecContext(ctx, "INSERT OR IGNORE INTO blobs(id, content) VALUES(?, ?)", string(id), value)
+	if err != nil {
+		return "", fmt.Errorf("put blob %s: %w", id, err)
+	}
+	return id, nil
+}
+
+// GetBlob retrieves content by its BLAKE3-256 hexadecimal identifier.
+func (s *Store) GetBlob(ctx context.Context, id storage.BlobID) ([]byte, error) {
+	if !validBlobID(id) {
+		return nil, storage.ErrInvalidBlob
+	}
+	var value []byte
+	if err := s.db.QueryRowContext(ctx, "SELECT content FROM blobs WHERE id = ?", string(id)).Scan(&value); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, storage.ErrNotFound
+		}
+		return nil, fmt.Errorf("get blob %s: %w", id, err)
+	}
+	return append([]byte(nil), value...), nil
+}
+
+func validBlobID(id storage.BlobID) bool {
+	if len(id) != 64 || string(id) != strings.ToLower(string(id)) {
+		return false
+	}
+	_, err := hex.DecodeString(string(id))
+	return err == nil
 }
 
 func tableName(kind storage.Kind) (string, error) {

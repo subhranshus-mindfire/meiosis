@@ -8,12 +8,16 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("storage record not found")
-	ErrInvalidKey = errors.New("invalid storage key")
+	ErrNotFound    = errors.New("storage record not found")
+	ErrInvalidKey  = errors.New("invalid storage key")
+	ErrInvalidBlob = errors.New("invalid blob identifier")
 )
 
 // Kind identifies one of the immutable M0 record collections.
 type Kind string
+
+// BlobID is the lower-case hexadecimal BLAKE3-256 identifier of blob content.
+type BlobID string
 
 const (
 	KindPrincipal   Kind = "principals"
@@ -32,5 +36,7 @@ type Store interface {
 	Get(ctx context.Context, kind Kind, key string) ([]byte, error)
 	Delete(ctx context.Context, kind Kind, key string) error
 	List(ctx context.Context, kind Kind) (map[string][]byte, error)
+	PutBlob(ctx context.Context, value []byte) (BlobID, error)
+	GetBlob(ctx context.Context, id BlobID) ([]byte, error)
 	Close() error
 }

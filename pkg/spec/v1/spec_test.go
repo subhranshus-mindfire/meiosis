@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -86,70 +85,6 @@ func TestIntentValidate(t *testing.T) {
 	i.Scope.Allow = []string{"["}
 	if err := i.Validate(); err == nil {
 		t.Fatal("Validate() expected invalid glob error")
-	}
-}
-
-func TestGenerateAndLoadKeyPair(t *testing.T) {
-	original, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	if len(original.PublicKey) != ed25519.PublicKeySize || len(original.PrivateKey) != ed25519.PrivateKeySize {
-		t.Fatal("GenerateKeyPair() returned incorrectly sized keys")
-	}
-
-	loaded, err := LoadKeyPair(original.PrivateKey, original.PublicKey)
-	if err != nil {
-		t.Fatalf("LoadKeyPair() error = %v", err)
-	}
-	if loaded.PublicKeyBase64() != original.PublicKeyBase64() || loaded.PrivateKeyBase64() != original.PrivateKeyBase64() {
-		t.Fatal("LoadKeyPair() changed key material")
-	}
-
-	message := []byte("meiosis keypair test")
-	signature := ed25519.Sign(loaded.PrivateKey, message)
-	if !ed25519.Verify(loaded.PublicKey, message, signature) {
-		t.Fatal("loaded keypair failed signature verification")
-	}
-}
-
-func TestLoadEncodedKeyPair(t *testing.T) {
-	original, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	loaded, err := LoadEncodedKeyPair(original.PrivateKeyBase64(), original.PublicKeyBase64())
-	if err != nil {
-		t.Fatalf("LoadEncodedKeyPair() error = %v", err)
-	}
-	if loaded.PublicKeyBase64() != original.PublicKeyBase64() {
-		t.Fatal("LoadEncodedKeyPair() loaded a different public key")
-	}
-}
-
-func TestLoadKeyPairRejectsMalformedKeys(t *testing.T) {
-	valid, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	for name, privateKey := range map[string][]byte{
-		"empty":     nil,
-		"short":     make([]byte, ed25519.SeedSize-1),
-		"malformed": make([]byte, ed25519.PrivateKeySize),
-		"long":      make([]byte, ed25519.PrivateKeySize+1),
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := LoadKeyPair(privateKey, nil); err == nil {
-				t.Fatal("LoadKeyPair() accepted malformed private key")
-			}
-		})
-	}
-	badPublic := make([]byte, ed25519.PublicKeySize)
-	if _, err := LoadKeyPair(valid.PrivateKey, badPublic); err == nil {
-		t.Fatal("LoadKeyPair() accepted mismatched public key")
-	}
-	if _, err := LoadEncodedKeyPair("not-base64", ""); err == nil {
-		t.Fatal("LoadEncodedKeyPair() accepted malformed encoding")
 	}
 }
 
@@ -249,104 +184,6 @@ func TestCanonicalizeProducesStableHashInput(t *testing.T) {
 	hash := sha256.Sum256(canonical)
 	if got, want := hex.EncodeToString(hash[:]), "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"; got != want {
 		t.Fatalf("canonical hash = %s, want %s", got, want)
-	}
-}
-
-func TestSignAndVerifyMeiosisObject(t *testing.T) {
-	keys, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	object := Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}
-
-	signature, err := Sign(object, keys.PrivateKey)
-	if err != nil {
-		t.Fatalf("Sign() error = %v", err)
-	}
-	valid, err := Verify(object, signature, keys.PublicKey)
-	if err != nil {
-		t.Fatalf("Verify() error = %v", err)
-	}
-	if !valid {
-		t.Fatal("Verify() rejected a valid signature")
-	}
-
-	repeated, err := Sign(object, keys.PrivateKey)
-	if err != nil {
-		t.Fatalf("Sign() repeated call error = %v", err)
-	}
-	if signature != repeated {
-		t.Fatal("Sign() produced different signatures for the same canonical object")
-	}
-}
-
-func TestSignExcludesSignatureField(t *testing.T) {
-	keys, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	withoutSignature := map[string]any{"id": "agent:planner-7", "kind": "agent"}
-	withSignature := map[string]any{"kind": "agent", "id": "agent:planner-7", "signature": "old-signature"}
-
-	first, err := Sign(withoutSignature, keys.PrivateKey)
-	if err != nil {
-		t.Fatalf("Sign() without signature error = %v", err)
-	}
-	second, err := Sign(withSignature, keys.PrivateKey)
-	if err != nil {
-		t.Fatalf("Sign() with signature error = %v", err)
-	}
-	if first != second {
-		t.Fatalf("Sign() included signature field: %q != %q", first, second)
-	}
-}
-
-func TestVerifyRejectsChangedObjectAndMalformedSignature(t *testing.T) {
-	keys, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() error = %v", err)
-	}
-	object := map[string]any{"id": "agent:planner-7", "kind": "agent"}
-	signature, err := Sign(object, keys.PrivateKey)
-	if err != nil {
-		t.Fatalf("Sign() error = %v", err)
-	}
-	orderedObject := map[string]any{"kind": "agent", "id": "agent:planner-7"}
-	valid, err := Verify(orderedObject, signature, keys.PublicKey)
-	if err != nil {
-		t.Fatalf("Verify() reordered object error = %v", err)
-	}
-	if !valid {
-		t.Fatal("Verify() rejected an equivalent object with reordered fields")
-	}
-
-	otherKeys, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair() for wrong key error = %v", err)
-	}
-	valid, err = Verify(object, signature, otherKeys.PublicKey)
-	if err != nil {
-		t.Fatalf("Verify() wrong key error = %v", err)
-	}
-	if valid {
-		t.Fatal("Verify() accepted a signature with the wrong public key")
-	}
-
-	valid, err = Verify(map[string]any{"id": "agent:other", "kind": "agent"}, signature, keys.PublicKey)
-	if err != nil {
-		t.Fatalf("Verify() changed object error = %v", err)
-	}
-	if valid {
-		t.Fatal("Verify() accepted a signature for a changed object")
-	}
-	if _, err := Verify(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, "not-base64", keys.PublicKey); err == nil {
-		t.Fatal("Verify() accepted malformed signature encoding")
-	}
-}
-
-func TestSignRejectsMalformedPrivateKey(t *testing.T) {
-	if _, err := Sign(Principal{ID: "agent:planner-7", Kind: PrincipalKindAgent}, make(ed25519.PrivateKey, ed25519.SeedSize-1)); err == nil {
-		t.Fatal("Sign() accepted malformed private key")
 	}
 }
 

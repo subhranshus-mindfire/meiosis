@@ -1,4 +1,4 @@
-package v1
+package crypto
 
 import (
 	"crypto/ed25519"
@@ -61,12 +61,10 @@ func LoadEncodedKeyPair(privateKey, publicKey string) (KeyPair, error) {
 	return LoadKeyPair(private, public)
 }
 
-// PublicKeyBase64 returns the raw public key encoded with standard base64.
 func (k KeyPair) PublicKeyBase64() string {
 	return base64.StdEncoding.EncodeToString(k.PublicKey)
 }
 
-// PrivateKeyBase64 returns the raw private key encoded with standard base64.
 func (k KeyPair) PrivateKeyBase64() string {
 	return base64.StdEncoding.EncodeToString(k.PrivateKey)
 }

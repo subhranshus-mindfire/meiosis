@@ -111,3 +111,53 @@ func TestBlobPersistenceAndDeduplication(t *testing.T) {
 		t.Fatalf("GetBlob() invalid ID error = %v, want ErrInvalidBlob", err)
 	}
 }
+
+func TestTransactionCommitsAllChanges(t *testing.T) {
+	store, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+
+	if err := store.Transaction(ctx, func(tx storage.Tx) error {
+		if err := tx.Put(ctx, storage.KindIntent, "int_1", []byte("intent")); err != nil {
+			return err
+		}
+		_, err := tx.PutBlob(ctx, []byte("blob"))
+		return err
+	}); err != nil {
+		t.Fatalf("Transaction() error = %v", err)
+	}
+	if _, err := store.Get(ctx, storage.KindIntent, "int_1"); err != nil {
+		t.Fatalf("committed object unavailable: %v", err)
+	}
+}
+
+func TestTransactionRollsBackAllChanges(t *testing.T) {
+	store, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	expected := errors.New("mutation failed")
+
+	if err := store.Transaction(ctx, func(tx storage.Tx) error {
+		if err := tx.Put(ctx, storage.KindAttempt, "att_1", []byte("attempt")); err != nil {
+			return err
+		}
+		if _, err := tx.PutBlob(ctx, []byte("blob")); err != nil {
+			return err
+		}
+		return expected
+	}); !errors.Is(err, expected) {
+		t.Fatalf("Transaction() error = %v, want %v", err, expected)
+	}
+	if _, err := store.Get(ctx, storage.KindAttempt, "att_1"); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("rolled-back object lookup = %v, want ErrNotFound", err)
+	}
+	if _, err := store.GetBlob(ctx, storage.BlobID("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("rolled-back blob lookup = %v, want ErrNotFound", err)
+	}
+}

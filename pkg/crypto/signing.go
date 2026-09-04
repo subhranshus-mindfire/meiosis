@@ -1,10 +1,12 @@
-package v1
+package crypto
 
 import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	specv1 "github.com/mindfire-test/meiosis/pkg/spec/v1"
 )
 
 // Sign canonicalizes value without its top-level signature field and signs the
@@ -44,15 +46,15 @@ func Verify(value any, signature string, publicKey ed25519.PublicKey) (bool, err
 func unsignedCanonicalBytes(value any) ([]byte, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnsupportedCanonicalValue, err)
+		return nil, fmt.Errorf("%w: %v", specv1.ErrUnsupportedCanonicalValue, err)
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &fields); err == nil && fields != nil {
 		delete(fields, "signature")
 		data, err = json.Marshal(fields)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrUnsupportedCanonicalValue, err)
+			return nil, fmt.Errorf("%w: %v", specv1.ErrUnsupportedCanonicalValue, err)
 		}
 	}
-	return CanonicalizeJSON(data)
+	return specv1.CanonicalizeJSON(data)
 }

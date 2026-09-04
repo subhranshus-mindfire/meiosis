@@ -158,10 +158,4 @@ func writeCGIResponse(w http.ResponseWriter, output []byte) error {
 	return err
 }
 
-func isHeaderWritten(http.ResponseWriter) bool {
-	// The standard ResponseWriter does not expose this state. This function is
-	// intentionally conservative; backend errors are reported before writing.
-	return false
-}
-
 var _ http.Handler = (*Handler)(nil)

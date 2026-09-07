@@ -13,11 +13,11 @@ func TestOpenInitializesSchemaIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	if err := first.Put(context.Background(), storage.KindIntent, "int_1", []byte(`{"id":"int_1"}`)); err != nil {
-		t.Fatalf("Put() error = %v", err)
+	if putErr := first.Put(context.Background(), storage.KindIntent, "int_1", []byte(`{"id":"int_1"}`)); putErr != nil {
+		t.Fatalf("Put() error = %v", putErr)
 	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
+	if closeErr := first.Close(); closeErr != nil {
+		t.Fatalf("Close() error = %v", closeErr)
 	}
 
 	databasePath := t.TempDir() + "/meiosis.db"
@@ -51,14 +51,14 @@ func TestStoreOperations(t *testing.T) {
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
-	if _, err := store.Get(ctx, storage.KindPrincipal, "missing"); !errors.Is(err, storage.ErrNotFound) {
-		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	if _, getErr := store.Get(ctx, storage.KindPrincipal, "missing"); !errors.Is(getErr, storage.ErrNotFound) {
+		t.Fatalf("Get() error = %v, want ErrNotFound", getErr)
 	}
-	if err := store.Put(ctx, storage.KindPrincipal, "agent:one", []byte("principal")); err != nil {
-		t.Fatalf("Put() error = %v", err)
+	if putErr := store.Put(ctx, storage.KindPrincipal, "agent:one", []byte("principal")); putErr != nil {
+		t.Fatalf("Put() error = %v", putErr)
 	}
-	if err := store.Put(ctx, storage.KindPrincipal, "agent:two", []byte("second")); err != nil {
-		t.Fatalf("Put() second error = %v", err)
+	if putErr := store.Put(ctx, storage.KindPrincipal, "agent:two", []byte("second")); putErr != nil {
+		t.Fatalf("Put() second error = %v", putErr)
 	}
 	items, err := store.List(ctx, storage.KindPrincipal)
 	if err != nil || len(items) != 2 {
@@ -91,8 +91,8 @@ func TestBlobPersistenceAndDeduplication(t *testing.T) {
 	if first != second {
 		t.Fatalf("duplicate content IDs differ: %q != %q", first, second)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
+	if closeErr := store.Close(); closeErr != nil {
+		t.Fatalf("Close() error = %v", closeErr)
 	}
 
 	reopened, err := Open(databasePath)

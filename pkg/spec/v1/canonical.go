@@ -85,9 +85,9 @@ func decodeCanonicalValue(decoder *json.Decoder) (any, error) {
 	case json.Delim('['):
 		array := make([]any, 0)
 		for decoder.More() {
-			value, err := decodeCanonicalValue(decoder)
-			if err != nil {
-				return nil, err
+			value, valueErr := decodeCanonicalValue(decoder)
+			if valueErr != nil {
+				return nil, valueErr
 			}
 			array = append(array, value)
 		}

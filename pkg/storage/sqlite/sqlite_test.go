@@ -25,18 +25,18 @@ func TestOpenInitializesSchemaIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() fresh database error = %v", err)
 	}
-	defer second.Close()
-	if err := second.Put(context.Background(), storage.KindWorld, "world-1", []byte("world")); err != nil {
-		t.Fatalf("Put() after initialization error = %v", err)
+	defer func() { _ = second.Close() }()
+	if putErr := second.Put(context.Background(), storage.KindWorld, "world-1", []byte("world")); putErr != nil {
+		t.Fatalf("Put() after initialization error = %v", putErr)
 	}
 	third, err := Open(databasePath)
 	if err != nil {
 		t.Fatalf("Open() existing database error = %v", err)
 	}
-	defer third.Close()
-	got, err := third.Get(context.Background(), storage.KindWorld, "world-1")
-	if err != nil {
-		t.Fatalf("Get() after repeated initialization error = %v", err)
+	defer func() { _ = third.Close() }()
+	got, getErr := third.Get(context.Background(), storage.KindWorld, "world-1")
+	if getErr != nil {
+		t.Fatalf("Get() after repeated initialization error = %v", getErr)
 	}
 	if string(got) != "world" {
 		t.Fatalf("Get() = %q, want world", got)
@@ -48,7 +48,7 @@ func TestStoreOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
 	if _, err := store.Get(ctx, storage.KindPrincipal, "missing"); !errors.Is(err, storage.ErrNotFound) {
@@ -99,10 +99,10 @@ func TestBlobPersistenceAndDeduplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() existing database error = %v", err)
 	}
-	defer reopened.Close()
-	got, err := reopened.GetBlob(ctx, first)
-	if err != nil {
-		t.Fatalf("GetBlob() error = %v", err)
+	defer func() { _ = reopened.Close() }()
+	got, blobErr := reopened.GetBlob(ctx, first)
+	if blobErr != nil {
+		t.Fatalf("GetBlob() error = %v", blobErr)
 	}
 	if string(got) != string(content) {
 		t.Fatalf("GetBlob() = %q, want %q", got, content)
@@ -117,17 +117,17 @@ func TestTransactionCommitsAllChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 
-	if err := store.Transaction(ctx, func(tx storage.Tx) error {
-		if err := tx.Put(ctx, storage.KindIntent, "int_1", []byte("intent")); err != nil {
-			return err
+	if txErr := store.Transaction(ctx, func(tx storage.Tx) error {
+		if putErr := tx.Put(ctx, storage.KindIntent, "int_1", []byte("intent")); putErr != nil {
+			return putErr
 		}
-		_, err := tx.PutBlob(ctx, []byte("blob"))
-		return err
-	}); err != nil {
-		t.Fatalf("Transaction() error = %v", err)
+		_, blobErr := tx.PutBlob(ctx, []byte("blob"))
+		return blobErr
+	}); txErr != nil {
+		t.Fatalf("Transaction() error = %v", txErr)
 	}
 	if _, err := store.Get(ctx, storage.KindIntent, "int_1"); err != nil {
 		t.Fatalf("committed object unavailable: %v", err)
@@ -139,20 +139,20 @@ func TestTransactionRollsBackAllChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 	expected := errors.New("mutation failed")
 
-	if err := store.Transaction(ctx, func(tx storage.Tx) error {
-		if err := tx.Put(ctx, storage.KindAttempt, "att_1", []byte("attempt")); err != nil {
-			return err
+	if txErr := store.Transaction(ctx, func(tx storage.Tx) error {
+		if putErr := tx.Put(ctx, storage.KindAttempt, "att_1", []byte("attempt")); putErr != nil {
+			return putErr
 		}
-		if _, err := tx.PutBlob(ctx, []byte("blob")); err != nil {
-			return err
+		if _, blobErr := tx.PutBlob(ctx, []byte("blob")); blobErr != nil {
+			return blobErr
 		}
 		return expected
-	}); !errors.Is(err, expected) {
-		t.Fatalf("Transaction() error = %v, want %v", err, expected)
+	}); !errors.Is(txErr, expected) {
+		t.Fatalf("Transaction() error = %v, want %v", txErr, expected)
 	}
 	if _, err := store.Get(ctx, storage.KindAttempt, "att_1"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("rolled-back object lookup = %v, want ErrNotFound", err)

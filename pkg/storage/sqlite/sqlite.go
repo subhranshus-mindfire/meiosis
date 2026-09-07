@@ -186,7 +186,7 @@ func list(ctx context.Context, executor sqlExecutor, kind storage.Kind) (map[str
 	if err != nil {
 		return nil, fmt.Errorf("list %s: %w", kind, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := make(map[string][]byte)
 	for rows.Next() {
 		var key string

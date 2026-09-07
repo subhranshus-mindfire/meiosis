@@ -36,11 +36,11 @@ func CanonicalizeJSON(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidCanonicalJSON, err)
 	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		if err == nil {
+	if _, tokenErr := decoder.Token(); !errors.Is(tokenErr, io.EOF) {
+		if tokenErr == nil {
 			return nil, fmt.Errorf("%w: multiple JSON values", ErrInvalidCanonicalJSON)
 		}
-		return nil, fmt.Errorf("%w: %v", ErrInvalidCanonicalJSON, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidCanonicalJSON, tokenErr)
 	}
 
 	normalized, err := normalizeCanonicalValue(value)
@@ -63,9 +63,9 @@ func decodeCanonicalValue(decoder *json.Decoder) (any, error) {
 	case json.Delim('{'):
 		object := make(map[string]any)
 		for decoder.More() {
-			key, err := decoder.Token()
-			if err != nil {
-				return nil, err
+			key, keyErr := decoder.Token()
+			if keyErr != nil {
+				return nil, keyErr
 			}
 			keyString, ok := key.(string)
 			if !ok {
@@ -74,9 +74,9 @@ func decodeCanonicalValue(decoder *json.Decoder) (any, error) {
 			if _, exists := object[keyString]; exists {
 				return nil, fmt.Errorf("duplicate object key %q", keyString)
 			}
-			value, err := decodeCanonicalValue(decoder)
-			if err != nil {
-				return nil, err
+			value, valueErr := decodeCanonicalValue(decoder)
+			if valueErr != nil {
+				return nil, valueErr
 			}
 			object[keyString] = value
 		}

@@ -37,7 +37,7 @@ func TestSmartHTTPCloneFetchPushAndPull(t *testing.T) {
 	if err != nil {
 		t.Skipf("loopback listener unavailable: %v", err)
 	}
-	listener.Close()
+	defer func() { _ = listener.Close() }()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	remoteURL := server.URL + "/repo.git"

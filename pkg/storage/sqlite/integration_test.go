@@ -14,14 +14,14 @@ func TestStorageIntegrationPersistsObjectsAndBlobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlite.Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	var publicStore storage.Store = store
 	ctx := context.Background()
 	object := []byte(`{"id":"att_1","world":"world-1"}`)
 	blob := []byte("pack content")
-	if err := publicStore.Put(ctx, storage.KindAttempt, "att_1", object); err != nil {
-		t.Fatalf("Put() error = %v", err)
+	if putErr := publicStore.Put(ctx, storage.KindAttempt, "att_1", object); putErr != nil {
+		t.Fatalf("Put() error = %v", putErr)
 	}
 	blobID, err := publicStore.PutBlob(ctx, blob)
 	if err != nil {
@@ -49,14 +49,14 @@ func TestStorageIntegrationRollsBackPartialMutationAndRecovers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlite.Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	ctx := context.Background()
 	var rolledBackBlob storage.BlobID
 	expectedFailure := errors.New("simulated mutation failure")
-	if err := store.Transaction(ctx, func(tx storage.Tx) error {
-		if err := tx.Put(ctx, storage.KindAttempt, "att_failed", []byte("attempt")); err != nil {
-			return err
+	if txErr := store.Transaction(ctx, func(tx storage.Tx) error {
+		if putErr := tx.Put(ctx, storage.KindAttempt, "att_failed", []byte("attempt")); putErr != nil {
+			return putErr
 		}
 		var err error
 		rolledBackBlob, err = tx.PutBlob(ctx, []byte("failed pack"))
@@ -64,8 +64,8 @@ func TestStorageIntegrationRollsBackPartialMutationAndRecovers(t *testing.T) {
 			return err
 		}
 		return expectedFailure
-	}); !errors.Is(err, expectedFailure) {
-		t.Fatalf("Transaction() error = %v, want %v", err, expectedFailure)
+	}); !errors.Is(txErr, expectedFailure) {
+		t.Fatalf("Transaction() error = %v, want %v", txErr, expectedFailure)
 	}
 	if _, err := store.Get(ctx, storage.KindAttempt, "att_failed"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("rolled-back object lookup = %v, want ErrNotFound", err)
@@ -74,14 +74,14 @@ func TestStorageIntegrationRollsBackPartialMutationAndRecovers(t *testing.T) {
 		t.Fatalf("rolled-back blob lookup = %v, want ErrNotFound", err)
 	}
 
-	if err := store.Transaction(ctx, func(tx storage.Tx) error {
-		if err := tx.Put(ctx, storage.KindAttempt, "att_recovered", []byte("recovered")); err != nil {
-			return err
+	if txErr := store.Transaction(ctx, func(tx storage.Tx) error {
+		if putErr := tx.Put(ctx, storage.KindAttempt, "att_recovered", []byte("recovered")); putErr != nil {
+			return putErr
 		}
-		_, err := tx.PutBlob(ctx, []byte("recovery pack"))
-		return err
-	}); err != nil {
-		t.Fatalf("recovery Transaction() error = %v", err)
+		_, blobErr := tx.PutBlob(ctx, []byte("recovery pack"))
+		return blobErr
+	}); txErr != nil {
+		t.Fatalf("recovery Transaction() error = %v", txErr)
 	}
 	if _, err := store.Get(ctx, storage.KindAttempt, "att_recovered"); err != nil {
 		t.Fatalf("recovered object lookup error = %v", err)

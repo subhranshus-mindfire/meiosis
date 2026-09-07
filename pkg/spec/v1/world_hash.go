@@ -34,6 +34,9 @@ func (h WorldHash) String() string {
 }
 
 func (h WorldHash) Validate() error {
+	if h == (WorldHash{}) {
+		return ErrInvalidWorldHash
+	}
 	return nil
 }
 

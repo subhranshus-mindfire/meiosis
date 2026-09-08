@@ -55,17 +55,17 @@ func TestIntentIsAllowed(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "empty intent denies all",
+			name:   "empty intent denies all",
 			intent: Intent{},
-			path: "README.md",
-			want: false,
+			path:   "README.md",
+			want:   false,
 		},
 		{
 			name: "invalid allow pattern returns error",
 			intent: Intent{
 				Allow: []string{"["}, // malformed doublestar glob
 			},
-			path: "test.go",
+			path:    "test.go",
 			wantErr: true,
 		},
 		{
@@ -74,7 +74,7 @@ func TestIntentIsAllowed(t *testing.T) {
 				Allow: []string{"**/*.go"},
 				Deny:  []string{"["}, // malformed doublestar glob
 			},
-			path: "test.go",
+			path:    "test.go",
 			wantErr: true,
 		},
 		{
@@ -96,6 +96,24 @@ func TestIntentIsAllowed(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("Intent.IsAllowed() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsPathAllowedFunction(t *testing.T) {
+	allowed, err := IsPathAllowed(Intent{Allow: []string{"**/*.go"}}, "internal/scope/scope.go")
+	if err != nil || !allowed {
+		t.Fatalf("IsPathAllowed() = %v, %v; want true, nil", allowed, err)
+	}
+}
+
+func TestIsPathAllowedRejectsUnsafePaths(t *testing.T) {
+	intent := Intent{Allow: []string{"**"}}
+	for _, path := range []string{"", "/etc/passwd", "../secret", "pkg/../secret", `pkg\\secret.go`} {
+		t.Run(path, func(t *testing.T) {
+			if allowed, err := intent.IsPathAllowed(path); err == nil || allowed {
+				t.Fatalf("IsPathAllowed(%q) = %v, %v; want false and an error", path, allowed, err)
 			}
 		})
 	}

@@ -11,13 +11,6 @@ import (
 	"github.com/mindfire-test/meiosis/pkg/storage"
 )
 
-var ErrInactiveAttempt = errors.New("attempt is not active")
-
-// Store persists validated Meiosis objects through a backend-neutral store.
-type Store struct {
-	backend storage.Store
-}
-
 func New(backend storage.Store) (*Store, error) {
 	if backend == nil {
 		return nil, errors.New("graph storage backend must not be nil")

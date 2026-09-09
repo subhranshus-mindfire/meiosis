@@ -16,20 +16,6 @@ import (
 	"github.com/mindfire-test/meiosis/pkg/spec/v1"
 )
 
-type testEvent struct {
-	Time    time.Time `json:"Time,omitempty"`
-	Action  string    `json:"Action"`
-	Package string    `json:"Package,omitempty"`
-	Test    string    `json:"Test,omitempty"`
-	Output  string    `json:"Output,omitempty"`
-	Elapsed float64   `json:"Elapsed,omitempty"`
-}
-
-type testPayload struct {
-	Format string      `json:"format"`
-	Events []testEvent `json:"events"`
-}
-
 // IngestGoTestJSON parses go test -json output, signs the resulting Evidence,
 // and stores it with the active attempt as one atomic operation.
 func IngestGoTestJSON(ctx context.Context, store *graph.Store, attemptID, producer string, world v1.WorldHash, privateKey ed25519.PrivateKey, input io.Reader) (v1.Evidence, error) {

@@ -13,7 +13,7 @@ import (
 
 	"github.com/mindfire-test/meiosis/internal/graph"
 	meiosiscrypto "github.com/mindfire-test/meiosis/pkg/crypto"
-	"github.com/mindfire-test/meiosis/pkg/spec/v1"
+	v1 "github.com/mindfire-test/meiosis/pkg/spec/v1"
 )
 
 // IngestGoTestJSON parses go test -json output, signs the resulting Evidence,

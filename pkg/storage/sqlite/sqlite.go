@@ -72,12 +72,6 @@ type transaction struct {
 	tx *sql.Tx
 }
 
-type sqlExecutor interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
 // Open opens databasePath and initializes the M0 schema. Use ":memory:" for
 // an isolated in-memory database, primarily in tests.
 func Open(databasePath string) (*Store, error) {

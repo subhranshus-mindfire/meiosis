@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mindfire-test/meiosis/pkg/spec/v1"
+	v1 "github.com/mindfire-test/meiosis/pkg/spec/v1"
 	"github.com/mindfire-test/meiosis/pkg/storage"
 )
 

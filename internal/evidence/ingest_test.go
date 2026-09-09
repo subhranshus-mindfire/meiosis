@@ -9,7 +9,7 @@ import (
 
 	"github.com/mindfire-test/meiosis/internal/graph"
 	meiosiscrypto "github.com/mindfire-test/meiosis/pkg/crypto"
-	"github.com/mindfire-test/meiosis/pkg/spec/v1"
+	v1 "github.com/mindfire-test/meiosis/pkg/spec/v1"
 	"github.com/mindfire-test/meiosis/pkg/storage/sqlite"
 )
 
@@ -18,7 +18,11 @@ func TestIngestGoTestJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			t.Errorf("close store: %v", closeErr)
+		}
+	}()
 	graphStore, err := graph.New(store)
 	if err != nil {
 		t.Fatal(err)
@@ -28,8 +32,8 @@ func TestIngestGoTestJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	attempt := testAttempt()
-	if err := graphStore.PutAttempt(context.Background(), attempt); err != nil {
-		t.Fatal(err)
+	if putErr := graphStore.PutAttempt(context.Background(), attempt); putErr != nil {
+		t.Fatal(putErr)
 	}
 	evidence, err := IngestGoTestJSON(context.Background(), graphStore, attempt.ID, "agent:ci", attempt.World, keys.PrivateKey, strings.NewReader(`{"Time":"2026-09-09T10:00:00Z","Action":"start","Package":"example"}
 {"Time":"2026-09-09T10:00:01Z","Action":"pass","Package":"example","Elapsed":1}`))
@@ -54,7 +58,11 @@ func TestIngestGoTestJSONRejectsMalformedOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			t.Errorf("close store: %v", closeErr)
+		}
+	}()
 	graphStore, _ := graph.New(store)
 	for name, input := range map[string]string{
 		"bad JSON":       "not-json",
@@ -75,7 +83,11 @@ func TestIngestGoTestJSONRejectsInactiveAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			t.Errorf("close store: %v", closeErr)
+		}
+	}()
 	graphStore, _ := graph.New(store)
 	attempt := testAttempt()
 	attempt.Status = v1.AttemptStatusMerged

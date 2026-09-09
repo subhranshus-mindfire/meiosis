@@ -59,8 +59,11 @@ func IngestGoTestJSON(ctx context.Context, store *graph.Store, attemptID, produc
 		Kind:      v1.EvidenceKindTestRun,
 		Producer:  producer,
 		Outcome:   outcome,
-		Payload:   mustJSON(testPayload{Format: "go test -json", Events: events}),
 		CreatedAt: createdAt,
+	}
+	evidence.Payload, err = json.Marshal(testPayload{Format: "go test -json", Events: events})
+	if err != nil {
+		return v1.Evidence{}, fmt.Errorf("encode evidence payload: %w", err)
 	}
 	digest, err := v1.HashCanonical(evidence)
 	if err != nil {
@@ -127,9 +130,4 @@ func validAction(action string) bool {
 	default:
 		return false
 	}
-}
-
-func mustJSON(value any) json.RawMessage {
-	data, _ := json.Marshal(value)
-	return data
 }
